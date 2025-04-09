@@ -203,6 +203,57 @@ local function adjust_cmd(cmd, result, file)
   return adjusted_cmd
 end
 
+local function yank(o)
+  local cmd
+  local result
+  if not o then
+    o = {}
+  end
+  local file = o.file
+  local options = vim.tbl_deep_extend('force', global_options, o)
+  if options.run_last then
+    if options.cache.last_run == nil then
+      print("You must run some test(s) before")
+      return
+    end
+    result = options.cache.last_run.result
+    file = options.cache.last_run.file
+    cmd = options.cache.last_run.cmd
+  end
+  if options.cmd then
+    cmd = options.cmd
+  end
+  if cmd == nil then
+    if options.run_file == true then
+      cmd = (options.path_to_jest or options.path_to_jest_run) .. " -- $file"
+    else
+      cmd = (options.path_to_jest or options.path_to_jest_run) .. " -t '$result' -- $file"
+    end
+  end
+  if file == nil then
+    file = vim.fn.expand('%:p')
+  end
+  if not options.run_last and not options.run_file then
+    result = get_result(options)
+    if not result then return end
+  end
+  global_options.cache.last_run = { result = result, file = file, cmd = cmd }
+
+  if options.escapeRegex==nil or options.escapeRegex then
+    file = regexEscape(file)
+  end
+
+  if options.func then
+    return options.func(vim.tbl_deep_extend('force', options, { result = result, file = file }))
+  end
+
+  -- local adjusted_cmd = vim.fn.escape(vim.fn.escape(adjust_cmd(cmd, result, file), "\\"), '\\')
+  local adjusted_cmd = vim.fn.escape(adjust_cmd(cmd, result, file), '\\')
+  vim.fn.setreg("+", adjusted_cmd)
+  print("Yanked test command")
+end
+
+
 local function run(o)
   local cmd
   local result
@@ -350,6 +401,7 @@ end
 
 return {
     setup = setup,
+    yank = yank,
     run = run,
     run_last = run_last,
     run_file = run_file,
